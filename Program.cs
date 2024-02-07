@@ -18,9 +18,20 @@ namespace CleanDN_CC
             string LogFile = ConfigurationSettings.AppSettings["LogFile"];
             string Folder = ConfigurationSettings.AppSettings["FolderToProcessFiles"];
             string FileToProcess = ConfigurationSettings.AppSettings["FileToProcess"];
+            string[] filesInFolder;
+            int fileQuantity = 0;
 
-            string[] filesInFolder = Directory.GetFiles(Folder, FileToProcess + "*");  //procura os LHDIFs que tiverem na pasta
-            int fileQuantity = filesInFolder.Length;  //quantidade de arquivos encontrados
+            Log("\n########## Inicio do processamento ##########", true);
+            try
+            {
+                filesInFolder = Directory.GetFiles(Folder, FileToProcess + "*");  //procura os LHDIFs que tiverem na pasta
+                fileQuantity = filesInFolder.Length;  //quantidade de arquivos encontrados
+            }
+            catch (Exception ex)
+            {
+                Log("\nNenhum arquivo LHDIF encontrado! Ignorando o processamento...\n\n", false);
+                return;
+            }
             string FileWithoutBanName = "";    //nome do novo arquivo SEM o(s) DN(s) banidos
             string FileWithBanName = "";    //nome do novo arquivo COM o(s) DN(s) banidos
 
@@ -29,7 +40,6 @@ namespace CleanDN_CC
 
             if (fileQuantity > 0)
             {
-                Log("########## Inicio do processamento ##########", true);
                 Log($"Iniciando o processamento de {fileQuantity} arquivos.",false);
                 int counter = 1;
                 foreach (var file in filesInFolder) //processa arquivo por arquivo encontrado na pasta...
@@ -60,7 +70,7 @@ namespace CleanDN_CC
                             actual = actualName.Split('.');
                             actualName = $"{actual[0]}.{actual[1]}";
                             //FileWithBanName = $"{FileToProcess}.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}.txt";   //nome do arquivo com ban...
-                            FileWithBanName = $"{actualName}.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}.txt";   //nome do arquivo com ban...
+                            FileWithBanName = $"{actualName}.TXT.CB.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";   //nome do arquivo com ban...
 
                             using (StreamWriter sw = new StreamWriter(Folder + FileWithBanName)) //cria o arquivo somente dos banidos...
                             {
@@ -70,10 +80,10 @@ namespace CleanDN_CC
                                 }
                             }
                             Log($"Gerado o arquivo com DNs banidos {FileWithBanName}...",false);
-                            
+
                             Thread.Sleep(3000); //intervalo de 3s por segurança...
 
-                            FileWithoutBanName = $"{actualName}.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}.txt";   //nome do arquivo sem ban...
+                            FileWithoutBanName = $"{actualName}.TXT.SB.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";   //nome do arquivo sem ban...
                             
                             using (StreamWriter sw = new StreamWriter(Folder + FileWithoutBanName)) //cria o arquivo somente sem os banidos...
                             {
@@ -84,9 +94,15 @@ namespace CleanDN_CC
                             }
                             Log($"Gerado o arquivo sem os DNs banidos {FileWithoutBanName}...",false);
 
-                            string BkpOriginalFile = $"{actualName}.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}.txt.old";
+                            Thread.Sleep(3000); //intervalo de 3s por segurança...
+
+                            string BkpOriginalFile = $"{actualName}.TXT.OLD.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";
                             File.Move(file,Folder + BkpOriginalFile);    //renomeia o arquivo original para não ser processado...
                             Log($"Arquivo {actualName}.txt renomeado para {BkpOriginalFile}...", false);
+                        }
+                        else
+                        {
+                            Log($"Nenhum DN banido encontrado!", false);
                         }
                     }
                     catch (Exception ex)
@@ -96,13 +112,14 @@ namespace CleanDN_CC
                     }
                     counter++;
                 }
-                Log("########## Fim do processamento ##########\n", true);
             }
             else
             {
                 Log($"Nenhum arquivo para processar em {Folder}", false);
                 Console.WriteLine($"Nenhum arquivo para processar em {Folder}");
             }
+            
+            Log("########## Fim do processamento ##########\n", true);
 
             void Log(string message, bool special)
             {
