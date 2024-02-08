@@ -6,7 +6,6 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using static System.Net.Mime.MediaTypeNames;
 
 namespace CleanDN_CC
 {
@@ -14,14 +13,17 @@ namespace CleanDN_CC
     {
         static void Main(string[] args)
         {
-            string DNBan = ConfigurationSettings.AppSettings["BannedDN"];
-            string LogFile = ConfigurationSettings.AppSettings["LogFile"];
-            string Folder = ConfigurationSettings.AppSettings["FolderToProcessFiles"];
-            string FileToProcess = ConfigurationSettings.AppSettings["FileToProcess"];
+            string DNIgn = ConfigurationManager.AppSettings["IgnoredDNs"];
+            string LogFile = ConfigurationManager.AppSettings["LogFile"];
+            string Folder = ConfigurationManager.AppSettings["FolderToProcessFiles"];
+            string FolderToBackup = ConfigurationManager.AppSettings["FolderToBackupFiles"];
+            string FolderNonProcessed = ConfigurationManager.AppSettings["FolderNonProcessedFiles"];
+            string FileToProcess = ConfigurationManager.AppSettings["FileToProcess"];
             string[] filesInFolder;
             int fileQuantity = 0;
 
             Log("\n########## Inicio do processamento ##########", true);
+            Console.WriteLine("########## Inicio do processamento ##########");
             try
             {
                 filesInFolder = Directory.GetFiles(Folder, FileToProcess + "*");  //procura os LHDIFs que tiverem na pasta
@@ -29,7 +31,8 @@ namespace CleanDN_CC
             }
             catch (Exception ex)
             {
-                Log("\nNenhum arquivo LHDIF encontrado! Ignorando o processamento...\n\n", false);
+                Log($"\nNenhum arquivo {FileToProcess} encontrado! Ignorando o processamento...\n\n", false);
+                Console.WriteLine($"\nNenhum arquivo {FileToProcess} encontrado! Ignorando o processamento...\n\n");
                 return;
             }
             string FileWithoutBanName = "";    //nome do novo arquivo SEM o(s) DN(s) banidos
@@ -41,10 +44,12 @@ namespace CleanDN_CC
             if (fileQuantity > 0)
             {
                 Log($"Iniciando o processamento de {fileQuantity} arquivos.",false);
+                Console.WriteLine($"Iniciando o processamento de {fileQuantity} arquivos.");
                 int counter = 1;
                 foreach (var file in filesInFolder) //processa arquivo por arquivo encontrado na pasta...
                 {
                     Log($"Processando o arquivo {counter}/{fileQuantity}...", false);
+                    Console.WriteLine($"Processando o arquivo {counter}/{fileQuantity}...");
                     try
                     {
                         string[] allLines = File.ReadAllLines(file);
@@ -53,7 +58,7 @@ namespace CleanDN_CC
                         {
                             string DnActual = l.Substring(0, 6);
 
-                            if (DnActual == DNBan)
+                            if (DnActual == DNIgn)
                             {
                                 FileWithBan.Add(l);
                             }
@@ -63,7 +68,7 @@ namespace CleanDN_CC
                             }
                         }
 
-                        if (FileWithBan.Count > 0)  //só executa alguma ação se encontrar algum DN banido...
+                        if (FileWithBan.Count > 0)  //só executa alguma ação se encontrar algum DN ignorado...
                         {
                             string[] actual = file.Split('\\');
                             string actualName = actual.Last();
@@ -72,18 +77,27 @@ namespace CleanDN_CC
                             //FileWithBanName = $"{FileToProcess}.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}.txt";   //nome do arquivo com ban...
                             FileWithBanName = $"{actualName}.TXT.CB.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";   //nome do arquivo com ban...
 
-                            using (StreamWriter sw = new StreamWriter(Folder + FileWithBanName)) //cria o arquivo somente dos banidos...
+                            using (StreamWriter sw = new StreamWriter(FolderNonProcessed + FileWithBanName)) //cria o arquivo somente dos banidos...
                             {
                                 foreach (string newLines in FileWithBan)
                                 {
                                     sw.WriteLine(newLines);
                                 }
                             }
-                            Log($"Gerado o arquivo com DNs banidos {FileWithBanName}...",false);
+                            Log($"Gerado o arquivo com os DNs ignorados em {FolderNonProcessed}{FileWithBanName}...",false);
+                            Console.WriteLine($"Gerado o arquivo com os DNs ignorados em {FolderNonProcessed}{FileWithBanName}...");
 
                             Thread.Sleep(3000); //intervalo de 3s por segurança...
 
-                            FileWithoutBanName = $"{actualName}.TXT.SB.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";   //nome do arquivo sem ban...
+                            string BkpOriginalFile = $"{actualName}.TXT.ORIGINAL.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";
+                            File.Move(file,FolderToBackup + BkpOriginalFile);    //renomeia o arquivo original para não ser processado...
+                            Log($"Arquivo {actualName}.txt renomeado para {FolderToBackup}{BkpOriginalFile}...", false);
+                            Console.WriteLine($"Arquivo {actualName}.txt renomeado para {FolderToBackup}{BkpOriginalFile}...");
+
+                            Thread.Sleep(3000); //intervalo de 3s por segurança...
+
+                            //FileWithoutBanName = $"{actualName}.TXT.SB.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";   //nome do arquivo sem ignorados...
+                            FileWithoutBanName = $"{actualName}.TXT";   //nome do arquivo sem ignorados...
                             
                             using (StreamWriter sw = new StreamWriter(Folder + FileWithoutBanName)) //cria o arquivo somente sem os banidos...
                             {
@@ -92,34 +106,31 @@ namespace CleanDN_CC
                                     sw.WriteLine(newLines);
                                 }
                             }
-                            Log($"Gerado o arquivo sem os DNs banidos {FileWithoutBanName}...",false);
-
-                            Thread.Sleep(3000); //intervalo de 3s por segurança...
-
-                            string BkpOriginalFile = $"{actualName}.TXT.OLD.D{DateTime.Now.ToString("yyyyMMdd")}.T{DateTime.Now.ToString("HHmmss")}";
-                            File.Move(file,Folder + BkpOriginalFile);    //renomeia o arquivo original para não ser processado...
-                            Log($"Arquivo {actualName}.txt renomeado para {BkpOriginalFile}...", false);
+                            Log($"Gerado o arquivo sem os DNs ignorados em {Folder}{FileWithoutBanName}...",false);
+                            Console.WriteLine($"Gerado o arquivo sem os DNs ignorados em {Folder}{FileWithoutBanName}...");
                         }
                         else
                         {
-                            Log($"Nenhum DN banido encontrado!", false);
+                            Log($"Nenhum DN ignorado encontrado! Nenhuma alteração realizada no arquivo {file}", false);
+                            Console.WriteLine($"Nenhum DN ignorado encontrado! Nenhuma alteração realizada no arquivo {file}");
                         }
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"Erro ao processar o arquivo {file}.\n{ex.Message}");
                         Log($"Erro ao processar o arquivo {file}. {ex.Message}", false);
+                        Console.WriteLine($"Erro ao processar o arquivo {file}.\n{ex.Message}");
                     }
                     counter++;
                 }
             }
             else
             {
-                Log($"Nenhum arquivo para processar em {Folder}", false);
-                Console.WriteLine($"Nenhum arquivo para processar em {Folder}");
+                Log($"Nenhum arquivo {FileToProcess} para processar em {Folder}", false);
+                Console.WriteLine($"Nenhum arquivo {FileToProcess} para processar em {Folder}");
             }
             
             Log("########## Fim do processamento ##########\n", true);
+            Console.WriteLine("########## Fim do processamento ##########\n");
 
             void Log(string message, bool special)
             {
